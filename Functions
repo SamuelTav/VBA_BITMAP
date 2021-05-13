@@ -1,0 +1,177 @@
+'Code inspired from the followin StackOverFlow thread:
+'https://stackoverflow.com/questions/15211808/vba-manually-create-bmp
+
+
+Private Type typHEADER
+    strType As String * 2  ' Signature of file = "BM"
+    lngSize As Long        ' File size
+    intRes1 As Integer     ' reserved = 0
+    intRes2 As Integer     ' reserved = 0
+    lngOffset As Long      ' offset to the bitmap data (bits)
+End Type
+Private Type typINFOHEADER
+    lngSize As Long        ' Size
+    lngWidth As Long       ' Height
+    lngHeight As Long      ' Length
+    intPlanes As Integer   ' Number of image planes in file
+    intBits As Integer     ' Number of bits per pixel
+    lngCompression As Long ' Compression type (set to zero)
+    lngImageSize As Long   ' Image size (bytes, set to zero)
+    lngxResolution As Long ' Device resolution (set to zero)
+    lngyResolution As Long ' Device resolution (set to zero)
+    lngColorCount As Long  ' Number of colors (set to zero for 24 bits)
+    lngImportantColors As Long ' "Important" colors (set to zero)
+End Type
+Private Type typPIXEL
+    bytB As Byte    ' Blue
+    bytG As Byte    ' Green
+    bytR As Byte    ' Red
+End Type
+Private Type typBITMAPFILE
+    bmfh As typHEADER
+    bmfi As typINFOHEADER
+    bmbits() As Byte
+End Type
+
+
+' More explanations on the different settings on Wikipedia:
+'   https://en.wikipedia.org/wiki/BMP_file_format
+
+'==================================================
+
+
+Sub Create_BMP()
+    'Use this sub to test the GenerateBMP Sub
+    
+    
+    'Size of the BMP image in pixels:
+    Dim ImgWidSize As Integer: ImgWidSize = 300
+    Dim ImgHeiSize As Integer: ImgHeiSize = 300
+    
+    'Path folder to save the image generated:
+    Dim StrBMP As String: StrBMP = "C:\Users\Samuel\Desktop\Sample.bmp"
+    
+    
+    GenerateBMP ArrBGR(ImgWidSize, ImgHeiSize), StrBMP
+
+End Sub
+
+
+Public Function ArrBGR(ArrWidth As Integer, ArrHeight As Integer) As Integer()
+    'Generate a 3D arraw (Height, Width and RGB values) to be converted into Bit Map File
+    
+    Dim TestProc As String: TestProc = "Random" 'Either "Random" or "RGB"
+    
+    
+    Dim TempArr() As Integer
+    ReDim TempArr(1 To ArrHeight, 1 To ArrWidth, 1 To 3)
+    
+    
+    Select Case TestProc
+    
+        Case "RGB"
+            'Generate an array with RGB columns:
+            For i = 1 To ArrHeight
+                For j = 1 To 3 * WorksheetFunction.Floor_Precise(ArrWidth / 3) Step 3
+                    TempArr(i, j, 3) = 255
+                    TempArr(i, j + 1, 2) = 255
+                    TempArr(i, j + 2, 1) = 255
+                Next j
+            Next i
+        
+        Case "Random"
+            'Generate an array with random colors columns:
+            For i = 1 To ArrHeight
+                For j = 1 To ArrWidth
+                    For k = 1 To 3
+                        TempArr(i, j, k) = Int((255 * Rnd) + 1)
+                    Next k
+                Next j
+            Next i
+            
+    End Select
+    
+    ArrBGR = TempArr
+    
+End Function
+
+
+Public Sub GenerateBMP(ArrBGR() As Integer, StrBMP As String)
+    'Convert a 3D array into a BMP file
+
+
+    Dim ImgHeiSize As Integer: ImgHeiSize = UBound(ArrBGR, 1)
+    Dim ImgWidSize As Integer: ImgWidSize = UBound(ArrBGR, 2)
+    
+    Dim bmpFile As typBITMAPFILE
+    Dim lngRowSize As Long
+    Dim lngPixelArraySize As Long
+    Dim j As Long, k As Long, l As Long, x As Long, y As Long
+    
+    
+'Create the first components of the BMP file:
+    With bmpFile
+        With .bmfh
+            .strType = "BM"
+            .lngSize = 0
+            .intRes1 = 0
+            .intRes2 = 0
+            .lngOffset = 54
+        End With
+        
+        With .bmfi
+            .lngSize = 40
+            .lngWidth = ImgWidSize
+            .lngHeight = ImgHeiSize
+            .intPlanes = 1
+            .intBits = 24
+            .lngCompression = 0
+            .lngImageSize = 0
+            .lngxResolution = 0
+            .lngyResolution = 0
+            .lngColorCount = 0
+            .lngImportantColors = 0
+        End With
+        
+        
+' Populate the pixel array:
+        lngRowSize = WorksheetFunction.Ceiling_Precise(.bmfi.intBits * .bmfi.lngWidth / 32) * 4
+        lngPixelArraySize = lngRowSize * .bmfi.lngHeight
+
+        ReDim .bmbits(lngPixelArraySize)
+        ReDim lngRGBColor(ImgWidSize, ImgHeiSize)
+        
+        k = -1
+        
+        For j = 1 To ImgHeiSize 'Loop for each rows, starting by the bottom one of the image
+            
+            'Associate the colors of the BGR matrix to each of the image's bytes
+            For x = 1 To ImgWidSize 'Loop for the pixels of each column, starting on the left of the image
+                For y = 1 To 3
+                    k = k + 1
+                    .bmbits(k) = ArrBGR(j, x, y)
+                Next y
+            Next x
+            
+            'Add padding to correct the lenght of the row if needed
+            If (ImgWidSize * .bmfi.intBits / 8 < lngRowSize) Then
+                For l = ((CLng(ImgWidSize) * CLng(.bmfi.intBits) / 8) + 1) To lngRowSize
+                    k = k + 1
+                    .bmbits(k) = 0
+                Next l
+            End If
+            
+        Next j
+        
+        .bmfh.lngSize = .bmfh.lngOffset + lngPixelArraySize
+     End With
+
+'Modifw the BMP file
+    Open StrBMP For Binary Access Write As 1 Len = 1
+        Put 1, 1, bmpFile.bmfh
+        Put 1, , bmpFile.bmfi
+        Put 1, , bmpFile.bmbits
+    Close
+
+End Sub
+
