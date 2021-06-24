@@ -49,11 +49,19 @@ Sub Create_BMP()
     Dim ImgHeiSize As Integer: ImgHeiSize = 300
     
     'Path folder to save the image generated:
-    Dim StrBMP As String: StrBMP = "C:\Users\Samuel\Desktop\Sample.bmp"
+    Dim StrBMP As String: StrBMP = "C:\Users\USER_NAME\Desktop\Sample.bmp"
     
     
     GenerateBMP ArrBGR(ImgWidSize, ImgHeiSize), StrBMP
+    Open_Img_File StrBMP
 
+End Sub
+
+
+Sub Open_Img_File(FileName As String)
+    'Use this Sub to open the image file
+    Shell "RunDLL32.exe C:\Windows\System32\Shimgvw.dll,ImageView_Fullscreen " & FileName
+    
 End Sub
 
 
